@@ -4,20 +4,12 @@
 #define PR(x) Serial.print(x); Serial.print(" ")
 
 
-// 12 -> 21
-// 11 20
-// 5 19
-// 4 18
-// 3 17
-// 2 16
+/*
+13 12 11 10 9 8  7 6
+12 13 8  G  # 11 7 3.3 
+*/
 
-// 13 9
-// 12 8
-
-// Defines the pins that will be used for the display
-// LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
-
-LiquidCrystal lcd(52, 50, 48, 46, 44, 42);
+LiquidCrystal lcd(49, 47, 48, 46, 44, 42);
 
 //bitmap array for the dino character
 byte dino[] = {
@@ -70,15 +62,14 @@ boolean isDinoOnGround = true;
 
 int currentIndexMenu = 0;
 int score = 0;
-int scoreListSize = 0;
-String scoreList[20];
+int high_score = 0;
 
 int select_but = 0, enter_but = 0, last_sample = 0;
 const int SAMPLE_PERIOD = 50;
 
 int level = 1, speed = 1;
 
-int RBG[3] = {5, 6, 7};
+int RBG[3] = {2, 3, 4};
 int VAL_RBG[3] = {0, 0, 0};
 int TMP = 0;
 void rgb_reset() {
@@ -153,14 +144,8 @@ void handleMenu() {
     lcd.setCursor(3, i);
     lcd.print(menu[i]);
   }
-  // PR("select_but: ");
-  // PRLN(select_but);
-  // PRLN(enter_but);
-  sample();
-  // PR("show: ");
-  // PRLN(select_but);
-  // PRLN(enter_but);
 
+  sample();
   if (select_but == 0){
     currentIndexMenu = currentIndexMenu == 0 ? 1 : 0;
     delay(200);
@@ -174,41 +159,23 @@ void handleMenu() {
 void showScore() {
   isShowScore = true;
   delay(200);
-
-  int currentIndex = 0;
-  const int lastIndex = scoreListSize - 1;
-
-  printScore(currentIndex, lastIndex);
+  printScore();
 
   while (isShowScore) {
     sample();
-    if (select_but){
-      currentIndex = currentIndex < lastIndex ? currentIndex + 1 : 0;
-      printScore(currentIndex, lastIndex);
-    }
-
-    if (enter_but){
+    if (select_but || enter_but){
       isShowScore = false;
     }
-
-    delay(300 );
+    delay(300);
   }
 }
 
-void printScore(int index, int lastIndex) {
+void printScore()
+{
   lcd.clear();
-
-  if (lastIndex == -1) {
-    lcd.print("NO SCORE");
-  } else {
-    lcd.print(scoreList[index]);
-
-    if (index < lastIndex) {
-      lcd.setCursor(0, 1);
-      lcd.print(scoreList[index + 1]);
-    }
-  }
+  lcd.print(high_score);
 }
+
 
 void startGame() {
   isPlaying = true;
@@ -233,7 +200,7 @@ void handleGame() {
     random(0, 2),
   };
 
-  int random_bullet = random(8, 13);
+  int random_bullet = random(8, 14);
   int bullet_on_air = random(0, 2);
 
   const int columnValueToStopMoveTrees = -(secondPosition + thirdPosition);
@@ -241,16 +208,21 @@ void handleGame() {
   // this loop is to make the trees move, this loop waiting until
   // all the trees moved
   for (; firstTreePosition >= columnValueToStopMoveTrees; firstTreePosition--) {
-    // rgb_update();
-
-    if (bullet_on_air) {
-      bulletOnAir(random_bullet);
-    } else {
-      bulletOnGround(random_bullet);
-    }
-    random_bullet-=1;
 
     defineDinoPosition();
+    //display dino
+    enter_but ? putDinoOnGround() : putDinoOnAir();
+
+    score++;
+    speed = 200 - score;
+    speed = speed < 70 ? 70 - int(score / 20) : speed;
+    int k = speed < 70 ? 70 : speed;
+    int small_delay = map (k, 70, 201, 1, 10);
+    // score : 70 -> 250
+    // delay : 1 -> n
+
+    lcd.setCursor(14, 0);
+    lcd.print(map(201-speed, 0, 201, 1, 50));
 
     int secondTreePosition = firstTreePosition + secondPosition;
     int thirdTreePosition = secondTreePosition + thirdPosition;
@@ -259,7 +231,17 @@ void handleGame() {
       secondTreePosition,
       thirdTreePosition,
     };
-    
+
+    if (bullet_on_air)
+    {
+      bulletOnAir(random_bullet);
+    }
+    else
+    {
+      bulletOnGround(random_bullet);
+    }
+    random_bullet-=1;
+
     for (int i = 0; i < 3; i++) {
       if (tree_on_air[i] == 1) {
         showTreeOnAir(tree_pos[i]);
@@ -275,12 +257,14 @@ void handleGame() {
           check = check || (tree_pos[i] == 1);
         }
       }
+      if (bullet_on_air == 0) check = check || (random_bullet == 1);
     } else {
       for (int i = 0; i < 3; i++) {
         if (tree_on_air[i] == 1) {
           check = check || (tree_pos[i] == 1);
         }
       }
+      if (bullet_on_air) check = check || (random_bullet == 1);
     }
 
     if (check)
@@ -291,41 +275,39 @@ void handleGame() {
         lcd.setCursor(1, air);
         lcd.write(DINO_CHAR);
         if (isDinoOnGround) {
-          showTree(2);
+          if (random_bullet == 1) {
+            bulletOnGround(2);
+          } else{
+            showTree(2);
+          }
         } else {
+          if (random_bullet == 1) {
+            bulletOnAir(2);
+          } else{
           showTreeOnAir(2);
+          }
         }
         delay(100);
         lcd.setCursor(1, air);
         lcd.print(" ");
-        if (isDinoOnGround)
-        {
-          showTree(2);
-        }
-        else
-        {
+        if (isDinoOnGround) {
+          if (random_bullet == 1) {
+            bulletOnGround(2);
+          } else{
+            showTree(2);
+          }
+        } else {
+          if (random_bullet == 1) {
+            bulletOnAir(2);
+          } else{
           showTreeOnAir(2);
+          }
         }
         delay(100);
       }
-      // delay(1000); 
       handleGameOver();
       break;
     }
-
-    score++;
-    speed = 200 - score;
-    speed = speed < 70 ? 70 - int(score / 20) : speed;
-    int k = speed < 70 ? 70 : speed;
-    int small_delay = map (k, 70, 201, 1, 10);
-    // score : 70 -> 250
-    // delay : 1 -> n
-
-    //display dino
-    enter_but ? putDinoOnGround() : putDinoOnAir();
-
-    lcd.setCursor(13, 0);
-    lcd.print(map(201-speed, 0, 201, 1, 50));
     
     while (speed >= 0) {
       rgb_update();
@@ -352,9 +334,7 @@ void handleGameOver() {
 
 void saveScore() {
   lcd.clear();
-  scoreList[scoreListSize] = score;
-  scoreListSize++;
-
+  high_score = high_score > score ? high_score : score;
   isPlaying = false;
   score = 0;
   handleMenu();
